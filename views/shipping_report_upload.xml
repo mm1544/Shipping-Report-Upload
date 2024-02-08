@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_uploading_shipping_report_data" model="ir.actions.server">
+        <field name="name">Upload Shipping Report Data</field>
+        <field name="type">ir.actions.server</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <!-- Specifies the model where we want to add this action -->
+        <field name="binding_model_id" ref="base.model_res_partner"/>
+        <!-- When 'state' is set to 'code', Odoo will call a Python function -->
+        <field name="state">code</field>
+        <field name="code">record.import_shipping_report_csv_data()</field>
+    </record>
+    
+    <!-- Inheriting existing form view and adding fields. -->
+    <record id="view_partner_form_inherit" model="ir.ui.view">
+        <field name="name">res.partner.inherited.jtrs</field>
+        <field name="model">res.partner</field>
+        <!--inherit_id: External ID of inherited view. -->
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+          <xpath expr="/form[1]/sheet[1]/notebook[1]" position="inside">
+            <page string="Shipping Report" name="studio_page_zkpeC">
+              <group name="studio_group_zkpeC">
+                <group name="studio_group_zkpeC_left">
+                    <field name="shipping_report_to_upload"/>
+                </group>
+                <group name="studio_group_zkpeC_right"/>
+              </group>
+            </page>
+          </xpath>
+        </field>
+    </record>
+    
+    <!-- Inheriting existing form view and adding fields. -->
+    <record id="view_order_form_inherit" model="ir.ui.view">
+        <field name="name">sale.order.inherited.jtrs</field>
+        <field name="model">sale.order</field>
+        <!--inherit_id: External ID of inherited view. -->
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form[1]/sheet[1]/notebook[1]" position="inside">
+                <page string="Shipping Report" name="studio_page_MCAVW">
+                    <group name="studio_group_MCAVW">
+                        <group name="studio_group_MCAVW_left">
+                            <field name="shipping_report_carrier"/>
+                            <field name="shipping_report_consignment_parcel_no"/>
+                            <field name="shipping_report_serial_no"/>
+                            <field name="shipping_report_imei_no"/>
+                        </group>
+                        <group name="studio_group_MCAVW_right">
+                            <field name="shipping_report_source"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
