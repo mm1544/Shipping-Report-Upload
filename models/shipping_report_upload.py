@@ -54,6 +54,7 @@ class ShippingReportUpload(models.Model):
             else:
                 self.append_unique_values(formatted_data[po_name], line)
 
+
         return formatted_data
 
     def append_unique_values(self, data_list, line):
@@ -96,7 +97,7 @@ class ShippingReportUpload(models.Model):
             'line': 'ShippingReportUpload.log_shipping_report_operation',  # Method name or line number
             'func': '__import_shipping_report_csv_data__',  # Function name
         })
-        
+
 
 
 
@@ -118,7 +119,7 @@ class ShippingReportUpload(models.Model):
 #     shipping_report_consignment_parcel_no = fields.Text(string="Consignment/Parcel No")
 #     shipping_report_serial_no = fields.Text(string="Serial No")
 #     shipping_report_imei_no = fields.Text(string="IMEI No")
-    
+
 #     # Linking to a 'res.partner' model with a Many2one relationship
 #     shipping_report_source = fields.Many2one(comodel_name="res.partner", string="Shipping Report Document Added On")
 
@@ -189,7 +190,7 @@ class ShippingReportUpload(models.Model):
 #             sales_order = purchase_order.x_sale_id
 #             if not sales_order:
 #                 continue
-            
+
 #             # Writing the formatted data to the sales order
 #             sales_order.write({
 #                 'shipping_report_carrier': shipping_report_carrier_str,
@@ -202,7 +203,7 @@ class ShippingReportUpload(models.Model):
 #         # Logging the operation
 #         mess = "shipping_report_carrier: {},\nshipping_report_consignment_parcel_no: {},\nshipping_report_serial_no: {},\nshipping_report_imei_no: {}".format(
 #             line[16], line[17], line[29], line[30])
-        
+
 #         self.env['ir.logging'].create({
 #             'func': self.name,
 #             'line': '2228',
@@ -235,7 +236,7 @@ class ShippingReportUpload(models.Model):
 # #     shipping_report_serial_no = fields.Text(string="Serial No")
 # #     # shipping_report_imei_no = fields.Char(string="IMEI No")
 # #     shipping_report_imei_no = fields.Text(string="IMEI No")
-    
+
 # #     shipping_report_source = fields.Many2one(comodel_name="res.partner", string="Shipping Report Dockument Adden On")
 
 # # class ContactsFields(models.Model):
@@ -247,7 +248,7 @@ class ShippingReportUpload(models.Model):
 # # class ShippingReportUpload(models.Model):
 # #     _inherit = 'res.partner'
 
-    
+
 # #     def import_shipping_report_csv_data(self):
 # #         res_list = []
 # #         formated_data_dict = {}
@@ -271,24 +272,24 @@ class ShippingReportUpload(models.Model):
 # #             res_list.append(row)
 
 # #         for index, line in enumerate(res_list[1:]):
-        
+
 # #             # line[2] is PO name column
 # #             if not line or not line[2]:
 # #                 continue
 # #                 # log
-            
+
 # #             purchase_order = self.env['purchase.order'].search([('name', '=', line[2])])
 
 # #             if not purchase_order:
 # #                 continue
 # #                 # log
-                
+
 # #             sales_order = purchase_order.x_sale_id
-            
+
 # #             if not sales_order:
 # #                 continue
 # #                 # log
-            
+
 # #             if not formated_data_dict.get(line[2]):
 # #                 # "formated_data_dict: {'PO51414': [{'Parcelforce Worldwide'}, {'WM0336870'}, {'J3Q2VQ67TD'}, {''}]}"
 # #                 formated_data_dict[line[2]] = [[line[16]],[line[17]],[line[29]],[line[30]]]
@@ -305,14 +306,14 @@ class ShippingReportUpload(models.Model):
 # #         # raise Warning('\n\nformated_data_dict:\n{}\n\n'.format(formated_data_dict))
 # #         # {'PO51414': [{'Parcelforce Worldwide'}, {'WM0336870'}, {'', 'R2JRRW7GV7', 'J3Q2VQ67TD', 'GQ4TQ71VVN', 'TY26X3QL6R'}, {''}], 'PO51419': [{'Parcelforce Worldwide'}, {'WM0337040'}, {'FMXF1W26XQ', 'QK46TVDHW0', 'RWQWYC2QG4', 'KFHFJQLWRR', 'KVDGDXQ4DF', 'VG4G449N75', 'V3V19QR4H5', 'Y3WR4Q22VJ', 'R6HYF6YHLG', 'DJ4H3KPFGP', 'JPQ0TFV9W4'}, {''}], 'PO51420': [{'Parcelforce Worldwide'}, {'WM0338592'}, {'VJ2492M2G9', 'P52G2X4WT3'}, {''}], 'PO51410': [{'DPD(UK)', 'Parcelforce Worldwide'}, {'WM0339553', '15502667556123'}, {'JRMW9KNY7P', ''}, {''}]}"
 
-        
+
 # #         # Iterating through the dictionary. key=po_string, value=data_list.
 # #         for po_string, data_list in formated_data_dict.items():
 # #             shipping_report_carrier_str = ''
 # #             shipping_report_consignment_parcel_no_str = ''
 # #             shipping_report_serial_no_str = ''
 # #             shipping_report_imei_no_str = ''
-            
+
 # #             # Convert list to string with '\n' separated values, omitting empty values
 # #             shipping_report_carrier_str = '\n'.join(item for item in data_list[0] if item != '')
 # #             shipping_report_consignment_parcel_no_str = '\n'.join(item for item in data_list[1] if item != '')
@@ -324,13 +325,13 @@ class ShippingReportUpload(models.Model):
 # #             if not purchase_order:
 # #                 continue
 # #                 # log
-                
+
 # #             sales_order = purchase_order.x_sale_id
 
 # #             if not sales_order:
 # #                 continue
-                
-            
+
+
 # #             sales_order.write({
 # #                 'shipping_report_carrier': shipping_report_carrier_str,
 # #                 'shipping_report_consignment_parcel_no': shipping_report_consignment_parcel_no_str,
@@ -338,11 +339,11 @@ class ShippingReportUpload(models.Model):
 # #                 'shipping_report_imei_no': shipping_report_imei_no_str,
 # #                 'shipping_report_source': self.id
 # #                               })
-        
+
 
 
 # #         mess = "shipping_report_carrier: {},\nshipping_report_consignment_parcel_no: {},\nshipping_report_serial_no: {},\nshipping_report_imei_no: {}".format(line[16],line[17],line[29], line[30])
-        
+
 # #         self.env['ir.logging'].create({
 # #             'func': self.name,
 # #             'line': '2228',

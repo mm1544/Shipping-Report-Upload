@@ -1,8 +1,8 @@
 {
-    'name': 'Uploading Shipping Report',
+    'name': 'Shipping Report Uploading',
     'version': '1.0',
     'category': 'Generic Modules/Others',
-    'summary': '...',
+    'summary': 'Uploads Shipping Report CSV file. Fills related Sale Order fields with report data. Sends email to customer.',
     'sequence': '1',
     'author': 'Martynas Minskis',
     'depends': ['sale'],
