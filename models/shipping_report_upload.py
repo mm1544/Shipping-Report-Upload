@@ -84,44 +84,51 @@ class ShippingReportUpload(models.Model):
                 data_list[idx].append(line[col])
 
     def get_formated_data(self, data_dict):
-        serial_numbers_list = []
+        """
+        Formats the data for display in email content.
+
+        Args:
+            data_dict (dict): Dictionary containing shipping report data.
+
+        Returns:
+            str: Formatted HTML string for email content.
+        """
+        # Initialize variables for HTML content
         shipping_carrier_lines = '<strong>Shipping Carriers</strong><ul style="margin-top: 0; padding-top: 3;">'
         serial_numbers_line = '<strong>Serial Numbers</strong><ul style="margin-top: 0; padding-top: 3;">'
 
-        # data_dict:
-        # {'shipping_report_carrier': 'Parcelforce Worldwide\nDPD(UK)', 'shipping_report_consignment_parcel_no': 'WM0339553\n15502667556123', 'shipping_report_serial_no': 'JRMW9KNY7P', 'shipping_report_imei_no': '', 'shipping_report_source': 273041, 'Sale Order': sale.order(60129,)}
+        # Extract customer reference and prepare customer reference line
         customer_reference = data_dict['Sale Order'].client_order_ref
         customer_reference_line = f'<p><strong>Customer Reference</strong>: {customer_reference}</p>'
+
+        # Process each shipping carrier and consignment number
         all_shipping_carriers = data_dict['shipping_report_carrier'].split(
             '\n')
-        all_shipping_report_consignment_parcel_no = data_dict['shipping_report_consignment_parcel_no'].split(
+        all_consignment_numbers = data_dict['shipping_report_consignment_parcel_no'].split(
             '\n')
         for index, carrier_str in enumerate(all_shipping_carriers):
-
+            # Add carrier and consignment number to the HTML content
             if self.SHIPPING_CARRIER_LINKS.get(carrier_str):
-                shipping_carrier_lines += f'<li style="margin-bottom: 6px;"><u>{carrier_str}</u></br>Consignment/Parcel Number: {all_shipping_report_consignment_parcel_no[index]}</br>Tracking Link: <a style="text-decoration: none;" href="{self.SHIPPING_CARRIER_LINKS.get(carrier_str)}">{self.SHIPPING_CARRIER_LINKS.get(carrier_str)}</a></li>'
-        shipping_carrier_lines = f'{shipping_carrier_lines}</ul>'
+                tracking_link = self.SHIPPING_CARRIER_LINKS.get(carrier_str)
+                shipping_carrier_lines += (f'<li style="margin-bottom: 6px;">'
+                                           f'<u>{carrier_str}</u></br>'
+                                           f'Consignment/Parcel Number: {all_consignment_numbers[index]}</br>'
+                                           f'Tracking Link: <a style="text-decoration: none;" href="{tracking_link}">{tracking_link}</a>'
+                                           f'</li>')
+        shipping_carrier_lines += '</ul>'
 
-        if data_dict.get('shipping_report_serial_no'):
+        # Process and format serial numbers, if any
+        if 'shipping_report_serial_no' in data_dict and data_dict['shipping_report_serial_no']:
             serial_numbers_list = data_dict['shipping_report_serial_no'].split(
                 '\n')
+            for serial_number in serial_numbers_list:
+                serial_numbers_line += f'<li style="margin-bottom: 6px;">{serial_number}</li>'
+        serial_numbers_line += '</ul>'
 
-        for index, serial_number in enumerate(serial_numbers_list):
-            serial_numbers_line += f'<li style="margin-bottom: 6px;">{serial_number}</span></li>'
+        # Combine all parts into the final formatted HTML content
+        formatted_html_content = f'<span>{customer_reference_line}{shipping_carrier_lines}{serial_numbers_line}</span>'
 
-        all_serial_numbers_lines = f'{serial_numbers_line}</ul>'
-
-        res = f'<span>{customer_reference_line + shipping_carrier_lines + all_serial_numbers_lines}</span>'
-
-        return res
-
-        # test = (f'all_shipping_carriers:\n{all_shipping_carriers}')
-        # test += (f'\n\nres:\n{res}')
-        # raise UserError(test)
-        # shipping_carriers = SHIPPING_CARRIER_LINKS[data_dict['Sale Order'].client_order_ref
-        # result = f'<p>{customer_reference}</p>'
-
-        # raise UserError(f'data_dict:\n{data_dict}')
+        return formatted_html_content
 
     def get_email_body(self, data_dict):
         table_width = 600
