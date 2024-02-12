@@ -40,15 +40,31 @@ class ShippingReportUpload(models.Model):
         'DPD(UK)': 'https://www.dpd.co.uk/service/https://www.dpd.co.uk/service/'
     }
 
+    def handle_multiple_purchase_orders(self, formatted_data_dict):
+        for po_string, data_dict in formatted_data_dict.items():
+            # Example of data_dict:
+            # {'Parcelforce Worldwide': [['WM0339553'], ['JRMW9KNY7P', ''], ['']], 'DPD(UK)': [['15502667556123'], [''], ['']]}
+
+            sales_order = self.get_sale_order(po_string)
+            if not sales_order:
+                self.log_shipping_report_operation(
+                    "", shipping_report_values, f'Sale Order for purchase_order:{po_string} not found')
+                continue
+
+            self.update_sales_orders(data_dict, sales_order)
+            self.send_email(data_dict, sales_order)
+
     def import_shipping_report_csv_data(self):
         if not self.shipping_report_to_upload:
             raise UserError("No shipping report to upload.")
 
         csv_data = self.decode_csv_data()
         res_list = self.parse_csv_data(csv_data)
+        # raise UserError(f'res_list:\n{res_list}')
+
         formatted_data_dict = self.format_data(res_list)
 
-        self.update_sales_orders_and_send_emails(formatted_data_dict)
+        self.handle_multiple_purchase_orders(formatted_data_dict)
 
     def decode_csv_data(self):
         return base64.b64decode(self.shipping_report_to_upload).decode('utf-8')
@@ -59,87 +75,107 @@ class ShippingReportUpload(models.Model):
         return [row for row in csv_reader]
 
     def format_data(self, res_list):
+        # Example of res_list:
+        # [['Account Code', 'Account Sequence', 'Customer PO', 'Order Date', 'WC Order No', 'Line Number', 'Part Number', 'Customer Product Code', 'Part Description', 'Line Qty', 'Unit Price', 'Unit VAT', 'Currency', 'Invoice No', 'Despatch Date', 'Delivery No', 'Carrier', 'Consignment/Parcel No', 'Delivery Contact', 'Delivery Address 1', 'Delivery Address 2', 'Delivery Address 3', 'Delivery Town', 'Delivery Address 5', 'Delivery Postcode', 'Delivery Country Code', 'Order Text 1', 'Order Text 2', 'Order Text 3', 'Serial No', 'IMEI No', 'SIM No'], ['JTR001', '000', 'PO51414', '29/11/2023', 'FGD2822', '1', 'MK2K3B/A', 'MK2K3B/A', 'IPAD 9TH GEN 10.2 WIFI 64GB SG', '1', '255.80', '51.16', 'GBP', 'LN27663', '29/11/2023', 'FGD2822/00', 'Parcelforce Worldwide', 'WM0336870', 'CAMBRIDGESHIRE COUNTY COUNCIL', 'THE ICT SERVICE SPEKE HOUSE', 'COMPASS POINT BUSINESS PARK', 'STOCKS BRIDGE WAY', 'ST. IVES', '', 'PE27 5JL', 'GB', '-  -', 'FAO: LEISHA JOY', '-  -', 'J3Q2VQ67TD', '', "'"],...]
+
         formatted_data = {}
         for line in res_list[1:]:
-            # Example of line:
-            # ['JTR001', '000', 'PO51414', '29/11/2023', 'FGD2822', '1', 'MK2K3B/A', 'MK2K3B/A', 'IPAD 9TH GEN 10.2 WIFI 64GB SG', '1', '255.80', '51.16', 'GBP', 'LN27663', '29/11/2023', 'FGD2822/00', 'Parcelforce Worldwide', 'WM0336870', 'Address1', 'Address2', 'Address3', 'Address4', 'ST. IVES', '', 'PE27 5JL', 'GB', '-  -', 'FAO: qqqqq', '-  -', 'J3Q2VQ67TD', '', "'"]
 
             if not line or not line[2]:
                 continue
 
             po_name = line[2]
             if not formatted_data.get(po_name):
-                formatted_data[po_name] = [[line[16]],
-                                           [line[17]], [line[29]], [line[30]]]
+                # 2.Customer PO, 16.Carrier, 17.Consignment/Parcel No, 29.Serial No, 30.IMEI No
+                formatted_data[po_name] = {line[16]: [
+                    [line[17]], [line[29]], [line[30]]]}
             else:
-                self.append_unique_values(formatted_data[po_name], line)
+                self.format_carrier_dictionary(formatted_data[po_name], line)
 
         # Example of formatted_data:
-        # {'PO51414': [['Parcelforce Worldwide'], ['WM0336870'], ['J3Q2VQ67TD', 'GQ4TQ71VVN', 'R2JRRW7GV7', 'TY26X3QL6R', ''], ['']], 'PO51419': [['Parcelforce Worldwide'], ['WM0337040'], ['KFHFJQLWRR', 'KVDGDXQ4DF', 'QK46TVDHW0', 'DJ4H3KPFGP', 'Y3WR4Q22VJ', 'RWQWYC2QG4', 'FMXF1W26XQ', 'JPQ0TFV9W4', 'R6HYF6YHLG', 'VG4G449N75', 'V3V19QR4H5'], ['']], 'PO51420': [['Parcelforce Worldwide'], ['WM0338592'], ['P52G2X4WT3', 'VJ2492M2G9'], ['']], 'PO51410': [['Parcelforce Worldwide', 'DPD(UK)'], ['WM0339553', '15502667556123'], ['JRMW9KNY7P', ''], ['']]}
+        # {'PO51414': {'Parcelforce Worldwide': [['WM0336870'], ['J3Q2VQ67TD', 'GQ4TQ71VVN', 'R2JRRW7GV7', 'TY26X3QL6R', ''], ['']]}, 'PO51419': {'Parcelforce Worldwide': [['WM0337040'], ['KFHFJQLWRR', 'KVDGDXQ4DF', 'QK46TVDHW0', 'DJ4H3KPFGP', 'Y3WR4Q22VJ', 'RWQWYC2QG4', 'FMXF1W26XQ', 'JPQ0TFV9W4', 'R6HYF6YHLG', 'VG4G449N75', 'V3V19QR4H5'], ['']]}, 'PO51420': {'Parcelforce Worldwide': [['WM0338592'], ['P52G2X4WT3', 'VJ2492M2G9'], ['']]}, 'PO51410': {'Parcelforce Worldwide': [['WM0339553'], ['JRMW9KNY7P', ''], ['']], 'DPD(UK)': [['15502667556123'], [''], ['']]}}
+
         return formatted_data
 
     def append_unique_values(self, data_list, line):
-        for idx, col in enumerate([16, 17, 29, 30]):
+        for idx, col in enumerate([17, 29, 30]):
             if line[col] not in data_list[idx]:
                 data_list[idx].append(line[col])
 
-    def get_formated_data(self, data_dict):
+    def format_carrier_dictionary(self, data_dict, line):
+        carrier = line[16]
+        if not data_dict.get(carrier):
+            data_dict[carrier] = [[line[17]], [line[29]], [line[30]]]
+        else:
+            self.append_unique_values(data_dict[carrier], line)
+
+    def get_formated_data(self, data_dict, sale_order):
         """
         Formats the data for display in email content.
 
         Args:
             data_dict (dict): Dictionary containing shipping report data.
+            Example: {'Parcelforce Worldwide': [['WM0339553'], ['JRMW9KNY7P', ''], ['']], 'DPD(UK)': [['15502667556123'], [''], ['']]}
 
         Returns:
             str: Formatted HTML string for email content.
         """
-        # Initialize variables for HTML content
-        shipping_carrier_lines = '<strong>Shipping Carriers</strong><ul style="margin-top: 0; padding-top: 3;">'
-        serial_numbers_line = '<strong>Serial Numbers</strong><ul style="margin-top: 0; padding-top: 3;">'
 
-        # Extract customer reference and prepare customer reference line
-        customer_reference = data_dict['Sale Order'].client_order_ref
-        customer_reference_line = f'<p><strong>Customer Reference</strong>: {customer_reference}</p>'
+        customer_reference_line = f'<p><strong>Customer Reference</strong>: {sale_order.client_order_ref}</p>'
+        # customer_reference_line += '<strong><span style="margin-bottom: 15px; padding-bottom: 15px;">Shipping Carriers</span></strong><ul style="margin-top: 0; padding-top: 3;">'
+        customer_reference_line += '<strong>Shipping Carriers</strong><ul style="margin-top: 0; padding-top: 3;">'
+        customer_reference_line += '<div style="margin-bottom: 15px;"></div>'
 
-        # Process each shipping carrier and consignment number
-        all_shipping_carriers = data_dict['shipping_report_carrier'].split(
-            '\n')
-        all_consignment_numbers = data_dict['shipping_report_consignment_parcel_no'].split(
-            '\n')
-        for index, carrier_str in enumerate(all_shipping_carriers):
+        for carrier_name, carrier_data_list in data_dict.items():
+            # TEST
+            # for carrier_name, carrier_data_list in {'Parcelforce Worldwide': [['WM0339553', 'test1', 'test2', 'test3'], ['JRMW9KNY7P', 'test123'], ['123qwe', '234512sdfdsfh', 'dfhd572']], 'DPD(UK)': [['15502667556123', 'dfhdf346346'], ['dsfhg436346'], ['hdhdf43', 'osdhg23950']]}.items():
+
             # Add carrier and consignment number to the HTML content
-            if self.SHIPPING_CARRIER_LINKS.get(carrier_str):
-                tracking_link = self.SHIPPING_CARRIER_LINKS.get(carrier_str)
-                shipping_carrier_lines += (f'<li style="margin-bottom: 6px;">'
-                                           f'<u>{carrier_str}</u></br>'
-                                           f'Consignment/Parcel Number: {all_consignment_numbers[index]}</br>'
-                                           f'Tracking Link: <a style="text-decoration: none;" href="{tracking_link}">{tracking_link}</a>'
-                                           f'</li>')
-        shipping_carrier_lines += '</ul>'
+            if self.SHIPPING_CARRIER_LINKS.get(carrier_name):
+                tracking_link = self.SHIPPING_CARRIER_LINKS.get(carrier_name)
+                parcel_number = ', '.join(filter(None, carrier_data_list[0]))
+                # shipping_carrier_lines += (f'<li style="margin-bottom: 6px;">'
+                customer_reference_line += (f'<li style="margin-bottom: 6px;">'
+                                            f'<u><strong>{carrier_name}</strong></u></br>'
+                                            f'Consignment/Parcel Number: {parcel_number}</br>'
+                                            f'Tracking Link: <a style="text-decoration: none;" href="{tracking_link}">{tracking_link}</a>'
+                                            f'</li>')
 
-        # Process and format serial numbers, if any
-        if 'shipping_report_serial_no' in data_dict and data_dict['shipping_report_serial_no']:
-            serial_numbers_list = data_dict['shipping_report_serial_no'].split(
-                '\n')
-            for serial_number in serial_numbers_list:
-                serial_numbers_line += f'<li style="margin-bottom: 6px;">{serial_number}</li>'
-        serial_numbers_line += '</ul>'
+                if carrier_data_list[1]:
+                    customer_reference_line += '<strong>Serial Numbers</strong><ul style="margin-top: 0; padding-top: 3;">'
+                    serial_numbers_list = carrier_data_list[1]
+                    for serial_number in serial_numbers_list:
+                        if serial_number == '':
+                            customer_reference_line += f'<li style="margin-bottom: 6px;"> - </li>'
+                        else:
+                            customer_reference_line += f'<li style="margin-bottom: 6px;">{serial_number}</li>'
 
-        # Combine all parts into the final formatted HTML content
-        formatted_html_content = f'<span>{customer_reference_line}{shipping_carrier_lines}{serial_numbers_line}</span>'
+                    customer_reference_line += '</ul>'
+
+                if carrier_data_list[2]:
+                    customer_reference_line += '<strong>IMEI Numbers</strong><ul style="margin-top: 0; padding-top: 3;">'
+                    imei_numbers_list = carrier_data_list[2]
+                    for imei_number in imei_numbers_list:
+                        if imei_number == '':
+                            customer_reference_line += f'<li style="margin-bottom: 6px;"> - </li>'
+                        else:
+                            customer_reference_line += f'<li style="margin-bottom: 6px;">{imei_number}</li>'
+
+                    customer_reference_line += '</ul>'
+
+        customer_reference_line += '</ul>'
+        formatted_html_content = f'<span>{customer_reference_line}</span>'
 
         return formatted_html_content
 
-    def get_email_body(self, data_dict):
+    def get_email_body(self, data_dict, sale_order):
         table_width = 600
         customer_name = (
-            ' ' + data_dict['Sale Order'].partner_id.name if data_dict['Sale Order'].partner_id.name else '')
+            ' ' + sale_order.partner_id.name if sale_order.partner_id.name else '')
 
         email_content = {
             'text_line_1': f'Hello{customer_name},',
-            'text_line_2': f'{self.get_formated_data(data_dict)}',
-            # 'text_line_2': f'TEXT TO ADD.</br><span>{self.get_formated_data(data_dict)}</span>',
-            # 'text_line_2': f'Please find attached a {self.HEADER_TEXT}.',
+            'text_line_2': f'{self.get_formated_data(data_dict, sale_order)}',
             'text_line_3': 'Kind regards,',
             'text_line_4': 'JTRS LTD',
             'table_width': table_width
@@ -192,15 +228,13 @@ class ShippingReportUpload(models.Model):
         """
         return email_html
 
-    def send_email(self, data):
-        recipient_email = data['Sale Order'].partner_id.email
+    def send_email(self, data, sale_order):
+
+        recipient_email = sale_order.partner_id.email
         sender_email = 'OdooBot <odoobot@jtrs.co.uk>'
         cc_email = 'martynas.minskis@jtrs.co.uk'
         subject = f"Serial Numbers ({date.today().strftime('%d/%m/%y')})"
-        email_body = self.get_email_body(data)
-        # test = f'send_email > SHIPPING_CARRIER_LINKS:\n{self.SHIPPING_CARRIER_LINKS}\n\ndata:\n{data}'
-        # test = f'\n\nemail_body:\n{email_body}'
-        # raise UserError(test)
+        email_body = self.get_email_body(data, sale_order)
         mail_mail = self.env['mail.mail'].create({
             'email_to': recipient_email,
             'email_from': sender_email,
@@ -211,33 +245,46 @@ class ShippingReportUpload(models.Model):
         mail_mail.send()
         # return True
 
-    def update_sales_orders_and_send_emails(self, formatted_data_dict):
-        for po_string, data_list in formatted_data_dict.items():
-            # #  TEST
-            # if po_string != 'PO51410':
-            #     continue
-            shipping_report_values = self.get_shipping_report_values(data_list)
-            # Example of shipping_report_values:
-            # {'shipping_report_carrier': 'Parcelforce Worldwide\nDPD(UK)', 'shipping_report_consignment_parcel_no': 'WM0339553\n15502667556123', 'shipping_report_serial_no': 'JRMW9KNY7P', 'shipping_report_imei_no': '', 'shipping_report_source': 273041}
-            # raise UserError(f'shipping_report_values:\n{shipping_report_values}')
-            purchase_order = self.env['purchase.order'].search(
-                [('name', '=', po_string)])
-            if purchase_order:
-                sales_order = purchase_order.x_sale_id
-                if sales_order:
-                    sales_order.write(shipping_report_values)
-                    self.log_shipping_report_operation(
-                        sales_order, shipping_report_values, f'Sale Order {sales_order.name} updated')
+    def get_sale_order(self, po_string):
+        purchase_order = self.env['purchase.order'].search(
+            [('name', '=', po_string)])
+        if not purchase_order:
+            return None
 
-                    shipping_report_values['Sale Order'] = sales_order
-                    self.send_email(shipping_report_values)
+        return purchase_order.x_sale_id
 
-    def get_shipping_report_values(self, data_list):
+    def update_sales_orders(self, formatted_data_dict, sales_order):
+
+        shipping_report_values = self.get_shipping_report_values(
+            formatted_data_dict)
+
+        sales_order.write(shipping_report_values)
+
+        self.log_shipping_report_operation(
+            sales_order, shipping_report_values, f'Sale Order {sales_order.name} updated')
+
+    def get_shipping_report_values(self, data_dict):
+        # Example of returned dictionary:
+        # {'shipping_report_carrier': ['Parcelforce Worldwide', 'DPD(UK)'], 'shipping_report_consignment_parcel_no': ['WM0339553', '15502667556123'], 'shipping_report_serial_no': ['JRMW9KNY7P', '', ''], 'shipping_report_imei_no': ['', ''], 'shipping_report_source': 273041}
+        data_list = [[], [], [], []]
+        for carrier_name, carrier_data_list in data_dict.items():
+
+            data_list[0].append(carrier_name)
+            for indx in range(1, 4):
+                # Check if carrier_data_list has enough elements to avoid IndexError
+                if len(carrier_data_list) >= indx:
+                    data_list[indx].extend(carrier_data_list[indx-1])
+                else:
+                    # Handle cases where carrier_data_list is shorter than expected
+                    # Extend with an empty list or handle as needed
+                    data_list[indx].extend([])
+
         return {
             'shipping_report_carrier': '\n'.join(filter(None, data_list[0])),
             'shipping_report_consignment_parcel_no': '\n'.join(filter(None, data_list[1])),
             'shipping_report_serial_no': '\n'.join(filter(None, data_list[2])),
             'shipping_report_imei_no': '\n'.join(filter(None, data_list[3])),
+            # Partner where Shipping Report Document Added On
             'shipping_report_source': self.id
         }
 
