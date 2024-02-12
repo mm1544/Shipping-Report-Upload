@@ -109,7 +109,7 @@ class ShippingReportUpload(models.Model):
         else:
             self.append_unique_values(data_dict[carrier], line)
 
-    def get_formated_data(self, data_dict, sale_order):
+    def get_formatted_data(self, data_dict, sale_order):
         """
         Formats the data for display in email content.
 
@@ -121,48 +121,41 @@ class ShippingReportUpload(models.Model):
             str: Formatted HTML string for email content.
         """
 
+        # Initialize the HTML content with customer reference
         customer_reference_line = f'<p><strong>Customer Reference</strong>: {sale_order.client_order_ref}</p>'
-        # customer_reference_line += '<strong><span style="margin-bottom: 15px; padding-bottom: 15px;">Shipping Carriers</span></strong><ul style="margin-top: 0; padding-top: 3;">'
         customer_reference_line += '<strong>Shipping Carriers</strong><ul style="margin-top: 0; padding-top: 3;">'
         customer_reference_line += '<div style="margin-bottom: 15px;"></div>'
 
+        # Iterate through each carrier in the data dictionary
         for carrier_name, carrier_data_list in data_dict.items():
-            # TEST
-            # for carrier_name, carrier_data_list in {'Parcelforce Worldwide': [['WM0339553', 'test1', 'test2', 'test3'], ['JRMW9KNY7P', 'test123'], ['123qwe', '234512sdfdsfh', 'dfhd572']], 'DPD(UK)': [['15502667556123', 'dfhdf346346'], ['dsfhg436346'], ['hdhdf43', 'osdhg23950']]}.items():
-
-            # Add carrier and consignment number to the HTML content
-            if self.SHIPPING_CARRIER_LINKS.get(carrier_name):
-                tracking_link = self.SHIPPING_CARRIER_LINKS.get(carrier_name)
+            # Check for a valid tracking link
+            tracking_link = self.SHIPPING_CARRIER_LINKS.get(carrier_name)
+            if tracking_link:
                 parcel_number = ', '.join(filter(None, carrier_data_list[0]))
-                # shipping_carrier_lines += (f'<li style="margin-bottom: 6px;">'
+                # Append carrier and consignment number to the HTML content
                 customer_reference_line += (f'<li style="margin-bottom: 6px;">'
                                             f'<u><strong>{carrier_name}</strong></u></br>'
                                             f'Consignment/Parcel Number: {parcel_number}</br>'
                                             f'Tracking Link: <a style="text-decoration: none;" href="{tracking_link}">{tracking_link}</a>'
                                             f'</li>')
 
+                # Process serial numbers if they exist
                 if carrier_data_list[1]:
                     customer_reference_line += '<strong>Serial Numbers</strong><ul style="margin-top: 0; padding-top: 3;">'
-                    serial_numbers_list = carrier_data_list[1]
-                    for serial_number in serial_numbers_list:
-                        if serial_number == '':
-                            customer_reference_line += f'<li style="margin-bottom: 6px;"> - </li>'
-                        else:
-                            customer_reference_line += f'<li style="margin-bottom: 6px;">{serial_number}</li>'
-
+                    for serial_number in carrier_data_list[1]:
+                        display_serial = serial_number if serial_number else '-'
+                        customer_reference_line += f'<li style="margin-bottom: 6px;">{display_serial}</li>'
                     customer_reference_line += '</ul>'
 
+                # Process IMEI numbers if they exist
                 if carrier_data_list[2]:
                     customer_reference_line += '<strong>IMEI Numbers</strong><ul style="margin-top: 0; padding-top: 3;">'
-                    imei_numbers_list = carrier_data_list[2]
-                    for imei_number in imei_numbers_list:
-                        if imei_number == '':
-                            customer_reference_line += f'<li style="margin-bottom: 6px;"> - </li>'
-                        else:
-                            customer_reference_line += f'<li style="margin-bottom: 6px;">{imei_number}</li>'
-
+                    for imei_number in carrier_data_list[2]:
+                        display_imei = imei_number if imei_number else '-'
+                        customer_reference_line += f'<li style="margin-bottom: 6px;">{display_imei}</li>'
                     customer_reference_line += '</ul>'
 
+        # Close the HTML list and wrap the content
         customer_reference_line += '</ul>'
         formatted_html_content = f'<span>{customer_reference_line}</span>'
 
@@ -175,7 +168,7 @@ class ShippingReportUpload(models.Model):
 
         email_content = {
             'text_line_1': f'Hello{customer_name},',
-            'text_line_2': f'{self.get_formated_data(data_dict, sale_order)}',
+            'text_line_2': f'{self.get_formatted_data(data_dict, sale_order)}',
             'text_line_3': 'Kind regards,',
             'text_line_4': 'JTRS LTD',
             'table_width': table_width
