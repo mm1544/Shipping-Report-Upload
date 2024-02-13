@@ -40,7 +40,7 @@ class ShippingReportUpload(models.Model):
 
     SHIPPING_CARRIER_LINKS = {
         'Parcelforce Worldwide': 'https://www.parcelforce.com/track-trace',
-        'DPD(UK)': 'https://www.dpd.co.uk/service/https://www.dpd.co.uk/service/'
+        'DPD(UK)': 'https://www.dpd.co.uk/service'
     }
 
     def handle_multiple_purchase_orders(self, formatted_data_dict):
@@ -51,7 +51,7 @@ class ShippingReportUpload(models.Model):
             sales_order = self.get_sale_order(po_string)
             if not sales_order:
                 self.log_shipping_report_operation(
-                    "", shipping_report_values, f'Sale Order for purchase_order:{po_string} not found')
+                    shipping_report_values, f'Sale Order for purchase_order:{po_string} not found', 'handle_multiple_purchase_orders')
                 continue
 
             self.update_sales_orders(data_dict, sales_order)
@@ -262,8 +262,10 @@ class ShippingReportUpload(models.Model):
 
     def send_email(self, data, sale_order):
 
-        # raise UserError(f'self.email_from_class: {self.email_from_class}')
-        # raise UserError(f'ShippingReportUpload.email_from_class: {ShippingReportUpload.email_from_class}')
+        if sale_order.partner_id.dont_send_email_after_shipping_report_upload:
+            self.log_shipping_report_operation(
+                sale_order.name, 'Email is not sent because dont_send_email_after_shipping_report_upload field is marked.', 'send_email')
+            return False
 
         recipient_email = sale_order.partner_id.email
         sender_email = 'OdooBot <odoobot@jtrs.co.uk>'
@@ -279,7 +281,7 @@ class ShippingReportUpload(models.Model):
             'body_html': email_body,
         })
         mail_mail.send()
-        # return True
+        return True
 
     def get_sale_order(self, po_string):
         purchase_order = self.env['purchase.order'].search(
@@ -297,7 +299,7 @@ class ShippingReportUpload(models.Model):
         sales_order.write(shipping_report_values)
 
         self.log_shipping_report_operation(
-            sales_order, shipping_report_values, f'Sale Order {sales_order.name} updated')
+            shipping_report_values, f'Sale Order {sales_order.name} updated', 'update_sales_orders')
 
     def get_shipping_report_values(self, data_dict):
         # Example of returned dictionary:
@@ -324,7 +326,7 @@ class ShippingReportUpload(models.Model):
             'shipping_report_source': self.id
         }
 
-    def log_shipping_report_operation(self, sales_order, values, message):
+    def log_shipping_report_operation(self, values, message, function_name):
         # Format the message for logging
         final_message = f"Shipping Report Data\n\nmessage:\n{message}\n\nvalues:\n{values}"
 
@@ -334,9 +336,9 @@ class ShippingReportUpload(models.Model):
             'type': 'server',  # Indicates that this log is from the server-side
             'dbname': self.env.cr.dbname,  # Current database name
             'level': 'info',  # Log level (info, warning, error)
-            'message': final_message,  # The main log message
+            'message': final_message,
             'path': 'models.res.partner',  # Path indicates the module/class path
             # Method name or line number
             'line': 'ShippingReportUpload.log_shipping_report_operation',
-            'func': '__import_shipping_report_csv_data__',  # Function name
+            'func': f'__{function_name}__',
         })
