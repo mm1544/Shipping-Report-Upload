@@ -148,40 +148,51 @@ class ShippingReportUpload(models.Model):
         Returns:
             str: Formatted HTML string for email content.
         """
-
+        customer_reference = sale_order.client_order_ref or ' -'
         # Initialize the HTML content with customer reference
-        customer_reference_line = f'<p><strong>Customer Reference</strong>: {sale_order.client_order_ref}</p>'
+        customer_reference_line = f'<p><strong>Customer Reference</strong>: {customer_reference}</p>'
         customer_reference_line += '<strong>Shipping Carriers</strong><ul style="margin-top: 0; padding-top: 3;">'
         customer_reference_line += '<div style="margin-bottom: 15px;"></div>'
 
         # Iterate through each carrier in the data dictionary
         for carrier_name, carrier_data_list in data_dict.items():
             # Check for a valid tracking link
-            tracking_link = self.SHIPPING_CARRIER_LINKS.get(carrier_name)
-            if tracking_link:
-                parcel_number = ', '.join(filter(None, carrier_data_list[0]))
-                # Append carrier and consignment number to the HTML content
-                customer_reference_line += (f'<li style="margin-bottom: 6px;">'
-                                            f'<u><strong>{carrier_name}</strong></u></br>'
-                                            f'Consignment/Parcel Number: {parcel_number}</br>'
-                                            f'Tracking Link: <a style="text-decoration: none;" href="{tracking_link}">{tracking_link}</a>'
-                                            f'</li>')
+            tracking_link = self.SHIPPING_CARRIER_LINKS.get(carrier_name, '')
+            # tracking_link = self.SHIPPING_CARRIER_LINKS.get(carrier_name)
+            # TEST >
+            # if tracking_link:
+            parcel_number = ', '.join(filter(None, carrier_data_list[0]))
+            # Append carrier and consignment number to the HTML content
+            carrier_name = carrier_name or ' -'
+            parcel_number = parcel_number or ' -'
+            customer_reference_line += f'<li style="margin-bottom: 6px;"><u><strong>{carrier_name}</strong></u><li style="list-style-type: none;">Consignment/Parcel Number: {parcel_number}</li>'
 
-                # Process serial numbers if they exist
-                if carrier_data_list[1]:
-                    customer_reference_line += '<strong>Serial Numbers</strong><ul style="margin-top: 0; padding-top: 3;">'
-                    for serial_number in carrier_data_list[1]:
-                        display_serial = serial_number if serial_number else '-'
-                        customer_reference_line += f'<li style="margin-bottom: 6px;">{display_serial}</li>'
-                    customer_reference_line += '</ul>'
+            if carrier_name == 'NX Pallet Carrier':
+                customer_reference_line += f'<li style="list-style-type: none;"><strong>No tracking available, out for delivery today</strong></li>'
 
-                # Process IMEI numbers if they exist
-                if carrier_data_list[2]:
-                    customer_reference_line += '<strong>IMEI Numbers</strong><ul style="margin-top: 0; padding-top: 3;">'
-                    for imei_number in carrier_data_list[2]:
-                        display_imei = imei_number if imei_number else '-'
-                        customer_reference_line += f'<li style="margin-bottom: 6px;">{display_imei}</li>'
-                    customer_reference_line += '</ul>'
+            elif tracking_link == '':
+                customer_reference_line += f'<li style="list-style-type: none;"><span>Tracking Link: -</span></li>'
+            else:
+                customer_reference_line += f'<li style="list-style-type: none;"><span>Tracking Link: <a style="text-decoration: none;" href="{tracking_link}">{tracking_link}</a></span></li>'
+            customer_reference_line += '</li>'
+
+            # Process serial numbers if they exist
+            if carrier_data_list[1]:
+                customer_reference_line += '<li style="list-style-type: none;"><span style="padding-top: 3px;"><strong>Serial Numbers</strong></span></li><ul style="margin-top: 0; padding-top: 3;">'
+                for serial_number in carrier_data_list[1]:
+                    display_serial = serial_number if serial_number else '-'
+                    customer_reference_line += f'<li style="margin-bottom: 6px;">{display_serial}</li>'
+                customer_reference_line += '</ul>'
+
+            # Process IMEI numbers if they exist
+            if carrier_data_list[2]:
+                customer_reference_line += '<li style="list-style-type: none;"><strong>IMEI Numbers</strong></li><ul style="margin-top: 0; padding-top: 3;">'
+                for imei_number in carrier_data_list[2]:
+                    display_imei = imei_number if imei_number else '-'
+                    customer_reference_line += f'<li style="margin-bottom: 6px;">{display_imei}</li>'
+                customer_reference_line += '</ul>'
+
+        # TEST <
 
         # Close the HTML list and wrap the content
         customer_reference_line += '</ul>'
