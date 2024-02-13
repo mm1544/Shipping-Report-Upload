@@ -1,11 +1,16 @@
-from odoo import models, fields
-from datetime import date
+from odoo import models, fields, api
 from odoo.exceptions import UserError
+from contextvars import ContextVar
+from datetime import date
 from io import StringIO
+import logging
 import base64
 import csv
 
-# Extend 'sale.order' model for custom shipping report functionality
+_logger = logging.getLogger(__name__)
+
+# Context variable declaration
+recipient_email_context = ContextVar('recipient_email_context', default='')
 
 
 class SaleOrderFields(models.Model):
@@ -19,8 +24,6 @@ class SaleOrderFields(models.Model):
     shipping_report_imei_no = fields.Text(string="IMEI No")
     shipping_report_source = fields.Many2one(
         comodel_name="res.partner", string="Shipping Report Document Added On")
-
-# Extend 'res.partner' for uploading shipping reports
 
 
 class ContactsFields(models.Model):
@@ -54,17 +57,34 @@ class ShippingReportUpload(models.Model):
             self.update_sales_orders(data_dict, sales_order)
             self.send_email(data_dict, sales_order)
 
-    def import_shipping_report_csv_data(self):
+    @api.model
+    def import_shipping_report_csv_data(self, recipient_email):
+        recipient_email_context.set(recipient_email)
+
         if not self.shipping_report_to_upload:
             raise UserError("No shipping report to upload.")
 
-        csv_data = self.decode_csv_data()
-        res_list = self.parse_csv_data(csv_data)
-        # raise UserError(f'res_list:\n{res_list}')
+        try:
+            csv_data = self.decode_csv_data()
+        except Exception as e:
+            _logger.error(f"Error decoding CSV data: {e}")
+            raise UserError("Failed to decode the shipping report file.")
 
-        formatted_data_dict = self.format_data(res_list)
+        try:
+            res_list = self.parse_csv_data(csv_data)
+        except Exception as e:
+            _logger.error(f"Error parsing CSV data: {e}")
+            raise UserError("Failed to parse the shipping report file.")
 
-        self.handle_multiple_purchase_orders(formatted_data_dict)
+        try:
+            formatted_data_dict = self.format_data(res_list)
+            self.handle_multiple_purchase_orders(formatted_data_dict)
+        except UserError as e:
+            raise e
+        except Exception as e:
+            _logger.error(f"Error processing shipping report data: {e}")
+            raise UserError(
+                "An error occurred while processing the shipping report.")
 
     def decode_csv_data(self):
         return base64.b64decode(self.shipping_report_to_upload).decode('utf-8')
@@ -74,40 +94,48 @@ class ShippingReportUpload(models.Model):
         csv_reader = csv.reader(csv_file)
         return [row for row in csv_reader]
 
+    # def check_header_correctness(self, header_values_list):
+    #     return header_values_list[2] == 'Customer PO' and header_values_list[16] == 'Carrier' and header_values_list[17] == 'Consignment/Parcel No' and header_values_list[29] == 'Serial No' and header_values_list[30] == 'IMEI No'
+
+    def check_header_correctness(self, header_values_list):
+        expected_headers = {
+            2: 'Customer PO',
+            16: 'Carrier',
+            17: 'Consignment/Parcel No',
+            29: 'Serial No',
+            30: 'IMEI No'
+        }
+
+        return all(header_values_list[index] == name for index, name in expected_headers.items())
+
     def format_data(self, res_list):
-        # Example of res_list:
-        # [['Account Code', 'Account Sequence', 'Customer PO', 'Order Date', 'WC Order No', 'Line Number', 'Part Number', 'Customer Product Code', 'Part Description', 'Line Qty', 'Unit Price', 'Unit VAT', 'Currency', 'Invoice No', 'Despatch Date', 'Delivery No', 'Carrier', 'Consignment/Parcel No', 'Delivery Contact', 'Delivery Address 1', 'Delivery Address 2', 'Delivery Address 3', 'Delivery Town', 'Delivery Address 5', 'Delivery Postcode', 'Delivery Country Code', 'Order Text 1', 'Order Text 2', 'Order Text 3', 'Serial No', 'IMEI No', 'SIM No'], ['JTR001', '000', 'PO51414', '29/11/2023', 'FGD2822', '1', 'MK2K3B/A', 'MK2K3B/A', 'IPAD 9TH GEN 10.2 WIFI 64GB SG', '1', '255.80', '51.16', 'GBP', 'LN27663', '29/11/2023', 'FGD2822/00', 'Parcelforce Worldwide', 'WM0336870', 'CAMBRIDGESHIRE COUNTY COUNCIL', 'THE ICT SERVICE SPEKE HOUSE', 'COMPASS POINT BUSINESS PARK', 'STOCKS BRIDGE WAY', 'ST. IVES', '', 'PE27 5JL', 'GB', '-  -', 'FAO: LEISHA JOY', '-  -', 'J3Q2VQ67TD', '', "'"],...]
+        """
+        Args:
+            res_list (list): List containing parsed xlsx file lines
+            Example:
+        [['Account Code', 'Account Sequence', 'Customer PO', 'Order Date', 'WC Order No', 'Line Number', 'Part Number', 'Customer Product Code', 'Part Description', 'Line Qty', 'Unit Price', 'Unit VAT', 'Currency', 'Invoice No', 'Despatch Date', 'Delivery No', 'Carrier', 'Consignment/Parcel No', 'Delivery Contact', 'Delivery Address 1', 'Delivery Address 2', 'Delivery Address 3', 'Delivery Town', 'Delivery Address 5', 'Delivery Postcode', 'Delivery Country Code', 'Order Text 1', 'Order Text 2', 'Order Text 3', 'Serial No', 'IMEI No', 'SIM No'], ['JTR001', '000', 'PO51414', '29/11/2023', 'FGD2822', '1', 'MK2K3B/A', 'MK2K3B/A', 'IPAD 9TH GEN 10.2 WIFI 64GB SG', '1', '###', '###', 'GBP', 'LN27663', '29/11/2023', 'FGD2822/00', 'Parcelforce Worldwide', 'WM0336870', 'CAMBRIDGESHIRE COUNTY COUNCIL', '###', '###', '###', 'ST. IVES', '', '###', 'GB', '-  -', 'FAO: ###', '-  -', 'J3Q2VQ67TD', '', "'"],...]
+
+        Returns:
+            formatted_data (dictionary)
+        Example:
+        {'PO51414': {'Parcelforce Worldwide': [['WM0336870'], ['J3Q2VQ67TD', 'GQ4TQ71VVN', 'R2JRRW7GV7', 'TY26X3QL6R', ''], ['']]}, 'PO51419': {'Parcelforce Worldwide': [['WM0337040'], ['KFHFJQLWRR', 'KVDGDXQ4DF', 'QK46TVDHW0', 'DJ4H3KPFGP', 'Y3WR4Q22VJ', 'RWQWYC2QG4', 'FMXF1W26XQ', 'JPQ0TFV9W4', 'R6HYF6YHLG', 'VG4G449N75', 'V3V19QR4H5'], ['']]}, 'PO51420': {'Parcelforce Worldwide': [['WM0338592'], ['P52G2X4WT3', 'VJ2492M2G9'], ['']]}, 'PO51410': {'Parcelforce Worldwide': [['WM0339553'], ['JRMW9KNY7P', ''], ['']], 'DPD(UK)': [['15502667556123'], [''], ['']]}}
+        """
+
+        if not self.check_header_correctness(res_list[0]):
+            raise UserError('Incorrect document header fields.')
 
         formatted_data = {}
         for line in res_list[1:]:
-
             if not line or not line[2]:
                 continue
-
             po_name = line[2]
-            if not formatted_data.get(po_name):
-                # 2.Customer PO, 16.Carrier, 17.Consignment/Parcel No, 29.Serial No, 30.IMEI No
-                formatted_data[po_name] = {line[16]: [
-                    [line[17]], [line[29]], [line[30]]]}
-            else:
-                self.format_carrier_dictionary(formatted_data[po_name], line)
-
-        # Example of formatted_data:
-        # {'PO51414': {'Parcelforce Worldwide': [['WM0336870'], ['J3Q2VQ67TD', 'GQ4TQ71VVN', 'R2JRRW7GV7', 'TY26X3QL6R', ''], ['']]}, 'PO51419': {'Parcelforce Worldwide': [['WM0337040'], ['KFHFJQLWRR', 'KVDGDXQ4DF', 'QK46TVDHW0', 'DJ4H3KPFGP', 'Y3WR4Q22VJ', 'RWQWYC2QG4', 'FMXF1W26XQ', 'JPQ0TFV9W4', 'R6HYF6YHLG', 'VG4G449N75', 'V3V19QR4H5'], ['']]}, 'PO51420': {'Parcelforce Worldwide': [['WM0338592'], ['P52G2X4WT3', 'VJ2492M2G9'], ['']]}, 'PO51410': {'Parcelforce Worldwide': [['WM0339553'], ['JRMW9KNY7P', ''], ['']], 'DPD(UK)': [['15502667556123'], [''], ['']]}}
-
+            carrier = line[16]
+            formatted_data.setdefault(
+                po_name, {}).setdefault(carrier, [[], [], []])
+            for idx, col in enumerate([17, 29, 30]):
+                if line[col] not in formatted_data[po_name][carrier][idx]:
+                    formatted_data[po_name][carrier][idx].append(line[col])
         return formatted_data
-
-    def append_unique_values(self, data_list, line):
-        for idx, col in enumerate([17, 29, 30]):
-            if line[col] not in data_list[idx]:
-                data_list[idx].append(line[col])
-
-    def format_carrier_dictionary(self, data_dict, line):
-        carrier = line[16]
-        if not data_dict.get(carrier):
-            data_dict[carrier] = [[line[17]], [line[29]], [line[30]]]
-        else:
-            self.append_unique_values(data_dict[carrier], line)
 
     def get_formatted_data(self, data_dict, sale_order):
         """
@@ -223,13 +251,17 @@ class ShippingReportUpload(models.Model):
 
     def send_email(self, data, sale_order):
 
+        # raise UserError(f'self.email_from_class: {self.email_from_class}')
+        # raise UserError(f'ShippingReportUpload.email_from_class: {ShippingReportUpload.email_from_class}')
+
         recipient_email = sale_order.partner_id.email
         sender_email = 'OdooBot <odoobot@jtrs.co.uk>'
         cc_email = 'martynas.minskis@jtrs.co.uk'
         subject = f"Serial Numbers ({date.today().strftime('%d/%m/%y')})"
         email_body = self.get_email_body(data, sale_order)
         mail_mail = self.env['mail.mail'].create({
-            'email_to': recipient_email,
+            # 'email_to': recipient_email,
+            'email_to': recipient_email_context.get(),
             'email_from': sender_email,
             'email_cc': cc_email,
             'subject': subject,

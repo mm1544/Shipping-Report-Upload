@@ -8,9 +8,11 @@
         <field name="binding_model_id" ref="base.model_res_partner"/>
         <!-- When 'state' is set to 'code', Odoo will call a Python function -->
         <field name="state">code</field>
+        <!-- <field name="code">model.import_shipping_report_csv_data()</field> -->
+        <!-- <field name="code">record.import_shipping_report_csv_data</field> -->
         <field name="code">record.import_shipping_report_csv_data()</field>
     </record>
-    
+
     <!-- Inheriting existing form view and adding fields. -->
     <record id="view_partner_form_inherit" model="ir.ui.view">
         <field name="name">res.partner.inherited.jtrs</field>
@@ -18,19 +20,20 @@
         <!--inherit_id: External ID of inherited view. -->
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
-          <xpath expr="/form[1]/sheet[1]/notebook[1]" position="inside">
-            <page string="Shipping Report" name="studio_page_zkpeC">
-              <group name="studio_group_zkpeC">
-                <group name="studio_group_zkpeC_left">
-                    <field name="shipping_report_to_upload"/>
-                </group>
-                <group name="studio_group_zkpeC_right"/>
-              </group>
-            </page>
-          </xpath>
+            <xpath expr="/form[1]/sheet[1]/notebook[1]" position="inside">
+                <page string="Shipping Report" name="studio_page_zkpeC">
+                    <group name="studio_group_zkpeC">
+                        <group name="studio_group_zkpeC_left">
+                            <field name="shipping_report_to_upload"/>
+                            <field name="dont_send_email_after_shipping_report_upload"/>
+                        </group>
+                        <group name="studio_group_zkpeC_right"/>
+                    </group>
+                </page>
+            </xpath>
         </field>
     </record>
-    
+
     <!-- Inheriting existing form view and adding fields. -->
     <record id="view_order_form_inherit" model="ir.ui.view">
         <field name="name">sale.order.inherited.jtrs</field>
@@ -56,3 +59,4 @@
         </field>
     </record>
 </odoo>
+
