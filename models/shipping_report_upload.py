@@ -10,7 +10,9 @@ import csv
 _logger = logging.getLogger(__name__)
 
 # Context variable declaration
-recipient_email_context = ContextVar('recipient_email_context', default='')
+# recipient_email_context = ContextVar('recipient_email_context', default='')
+cc_email_context = ContextVar('cc_email_context', default='')
+sender_email_context = ContextVar('sender_email_context', default='')
 
 
 class SaleOrderFields(models.Model):
@@ -51,15 +53,17 @@ class ShippingReportUpload(models.Model):
             sales_order = self.get_sale_order(po_string)
             if not sales_order:
                 self.log_shipping_report_operation(
-                    shipping_report_values, f'Sale Order for purchase_order:{po_string} not found', 'handle_multiple_purchase_orders')
+                    formatted_data_dict, f'Sale Order for purchase_order:{po_string} not found', 'handle_multiple_purchase_orders')
                 continue
 
             self.update_sales_orders(data_dict, sales_order)
             self.send_email(data_dict, sales_order)
 
     @api.model
-    def import_shipping_report_csv_data(self, recipient_email):
-        recipient_email_context.set(recipient_email)
+    def import_shipping_report_csv_data(self, sender_email, cc_email):
+
+        cc_email_context.set(cc_email)
+        sender_email_context.set(sender_email)
 
         if not self.shipping_report_to_upload:
             raise UserError("No shipping report to upload.")
@@ -268,15 +272,12 @@ class ShippingReportUpload(models.Model):
             return False
 
         recipient_email = sale_order.partner_id.email
-        sender_email = 'OdooBot <odoobot@jtrs.co.uk>'
-        cc_email = 'martynas.minskis@jtrs.co.uk'
         subject = f"Serial Numbers ({date.today().strftime('%d/%m/%y')})"
         email_body = self.get_email_body(data, sale_order)
         mail_mail = self.env['mail.mail'].create({
-            # 'email_to': recipient_email,
-            'email_to': recipient_email_context.get(),
-            'email_from': sender_email,
-            'email_cc': cc_email,
+            'email_to': recipient_email,
+            'email_from': sender_email_context.get(),
+            'email_cc': cc_email_context.get(),
             'subject': subject,
             'body_html': email_body,
         })
