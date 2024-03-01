@@ -22,7 +22,7 @@
         <field name="arch" type="xml">
             <xpath expr="/form[1]/sheet[1]/notebook[1]" position="inside">
                 <page string="Shipping Report" name="studio_page_zkpeC">
-                    <group name="studio_group_zkpeC">
+                    <group name="studio_group_zkpeC" string="Westcoast">
                         <group name="studio_group_zkpeC_left">
                             <field name="shipping_report_to_upload"/>
                             <field name="dont_send_email_after_shipping_report_upload"/>
@@ -43,14 +43,14 @@
         <field name="arch" type="xml">
             <xpath expr="//form[1]/sheet[1]/notebook[1]" position="inside">
                 <page string="Shipping Report" name="studio_page_MCAVW">
-                    <group name="studio_group_MCAVW">
+                    <group name="studio_group_MCAVW" string="Westcoast">
                         <group name="studio_group_MCAVW_left">
                             <field name="shipping_report_carrier"/>
                             <field name="shipping_report_consignment_parcel_no"/>
                             <field name="shipping_report_serial_no"/>
-                            <field name="shipping_report_imei_no"/>
                         </group>
                         <group name="studio_group_MCAVW_right">
+                            <field name="shipping_report_imei_no"/>
                             <field name="shipping_report_source"/>
                         </group>
                     </group>
@@ -58,5 +58,5 @@
             </xpath>
         </field>
     </record>
-</odoo>
 
+</odoo>
