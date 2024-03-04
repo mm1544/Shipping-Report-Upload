@@ -8,8 +8,6 @@
         <field name="binding_model_id" ref="base.model_res_partner"/>
         <!-- When 'state' is set to 'code', Odoo will call a Python function -->
         <field name="state">code</field>
-        <!-- <field name="code">model.import_shipping_report_csv_data()</field> -->
-        <!-- <field name="code">record.import_shipping_report_csv_data</field> -->
         <field name="code">record.import_shipping_report_csv_data()</field>
     </record>
 
@@ -24,7 +22,8 @@
                 <page string="Shipping Report" name="studio_page_zkpeC">
                     <group name="studio_group_zkpeC" string="Westcoast">
                         <group name="studio_group_zkpeC_left">
-                            <field name="shipping_report_to_upload"/>
+                            <field name="shipping_report_to_upload" filename="shipping_report_to_upload_name"/>
+                            <field name="shipping_report_to_upload_name" attrs="{}" invisible="1"/>
                             <field name="dont_send_email_after_shipping_report_upload"/>
                         </group>
                         <group name="studio_group_zkpeC_right"/>

@@ -32,6 +32,8 @@ class ContactsFields(models.Model):
     _inherit = 'res.partner'
     shipping_report_to_upload = fields.Binary(
         string="Shipping Report To Upload", help="Add Shipping Report file here and press dropdown action to upload data to Sales Orders")
+    shipping_report_to_upload_name = fields.Char(
+        string='Shipping Report Document Name')
     dont_send_email_after_shipping_report_upload = fields.Boolean(
         string="Don't Send Email After Shipping Report Upload")
 
@@ -238,7 +240,7 @@ class ShippingReportUpload(models.Model):
                         <td style="padding:15px 20px 10px 20px;">
                             <p>{email_content['text_line_1']}</p>
                             </br>
-                            <p>{email_content['text_line_2']}</p>
+                            <p style="padding-top:5px;">{email_content['text_line_2']}</p>
                             </br>
                             <p style="padding-top:20px;">{email_content['text_line_3']}</p>
                             <p>{email_content['text_line_4']}</p>
